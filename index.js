@@ -123,8 +123,8 @@ app.get('/parcelas', async (req, res) => {
     }
 });
 // Endpoint para obtener datos de los sensores por hora
-// Endpoint para obtener datos de los sensores por hora
-app.get('/sensores/por-hora', async (req, res) => {
+app.get('/sensores/:id_parcela/por-hora', async (req, res) => {
+    const { id_parcela } = req.params;
     try {
         const connection = await mysql.createConnection(dbConfig);
 
@@ -139,8 +139,9 @@ app.get('/sensores/por-hora', async (req, res) => {
                 d.sol
             FROM parcelas p
             JOIN datos_sensores d ON p.id_parcela = d.id_parcela_id
+            WHERE p.id_parcela = ?
             ORDER BY d.fecha_registro DESC, d.hora_registro DESC
-        `);
+        `, [id_parcela]);
 
         await connection.end();
 
@@ -151,9 +152,9 @@ app.get('/sensores/por-hora', async (req, res) => {
     }
 });
 
-// Endpoint para obtener datos de los sensores por día
-// Endpoint para obtener datos de los sensores por día
-app.get('/sensores/por-dia', async (req, res) => {
+// Endpoint para obtener datos de los sensores por día de una parcela específica
+app.get('/sensores/:id_parcela/por-dia', async (req, res) => {
+    const { id_parcela } = req.params;
     try {
         const connection = await mysql.createConnection(dbConfig);
 
@@ -167,9 +168,10 @@ app.get('/sensores/por-dia', async (req, res) => {
                 AVG(d.sol) AS sol_promedio
             FROM parcelas p
             JOIN datos_sensores d ON p.id_parcela = d.id_parcela_id
+            WHERE p.id_parcela = ?
             GROUP BY p.nombre, fecha
             ORDER BY fecha DESC
-        `);
+        `, [id_parcela]);
 
         await connection.end();
 
@@ -180,8 +182,9 @@ app.get('/sensores/por-dia', async (req, res) => {
     }
 });
 
-// Endpoint para obtener todos los datos de los sensores de cada parcela
-app.get('/sensores/todos', async (req, res) => {
+// Endpoint para obtener todos los datos de los sensores de una parcela específica
+app.get('/sensores/:id_parcela/todos', async (req, res) => {
+    const { id_parcela } = req.params;
     try {
         const connection = await mysql.createConnection(dbConfig);
 
@@ -196,8 +199,9 @@ app.get('/sensores/todos', async (req, res) => {
                 d.sol
             FROM parcelas p
             JOIN datos_sensores d ON p.id_parcela = d.id_parcela_id
+            WHERE p.id_parcela = ?
             ORDER BY d.fecha_registro DESC, d.hora_registro DESC
-        `);
+        `, [id_parcela]);
 
         await connection.end();
 
