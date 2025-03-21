@@ -1,22 +1,25 @@
 const express = require("express");
 const mysql = require('mysql2/promise');
 const axios = require('axios');
+const cors = require('cors'); // Importar cors
 
 const app = express();
 const PORT = 8080;
 
+// Habilitar CORS
+app.use(cors());
+
 // Configuración de la conexión a la base de datos
 const dbConfig = {
-    host: 'localhost',
-    user: 'root',
-    password: '',
-    database: 'iotapp_saves',
+    host: 'mysql-tanukistyles.alwaysdata.net',
+    user: '368585',
+    password: '46154774',
+    database: 'tanukistyles_iotapp',
 };
 
 // Función para sincronizar los datos de la API con la base de datos
 const syncData = async () => {
     try {
-        // Conexión a la base de datos
         const connection = await mysql.createConnection(dbConfig);
 
         // Obtener datos de la API
@@ -24,14 +27,12 @@ const syncData = async () => {
         const parcelas = response.data.parcelas;
 
         for (const parcela of parcelas) {
-            // Verificar si la parcela ya existe
             const [rows] = await connection.execute(
                 `SELECT * FROM parcelas WHERE id_parcela = ?`,
                 [parcela.id]
             );
 
             if (rows.length === 0) {
-                // Insertar nueva parcela
                 await connection.execute(
                     `INSERT INTO parcelas (id_parcela, nombre, ubicacion, responsable, tipo_cultivo) VALUES (?, ?, ?, ?, ?)`,
                     [
@@ -44,7 +45,6 @@ const syncData = async () => {
                 );
             }
 
-            // Verificar si los datos del sensor han cambiado
             const [sensorRows] = await connection.execute(
                 `SELECT * FROM datos_sensores WHERE id_parcela_id = ? ORDER BY fecha_registro DESC, hora_registro DESC LIMIT 1`,
                 [parcela.id]
@@ -59,7 +59,6 @@ const syncData = async () => {
                 latestSensorData.sol !== parcela.sensor.sol;
 
             if (hasChanged) {
-                // Insertar nuevos datos del sensor
                 const now = new Date();
                 const fecha = now.toISOString().split('T')[0];
                 const hora = now.toTimeString().split(' ')[0];
@@ -90,6 +89,123 @@ const syncData = async () => {
 app.get('/sync', async (req, res) => {
     await syncData();
     res.send('Sincronización completada.');
+});
+
+// Endpoint para obtener los datos de las parcelas y sensores
+app.get('/parcelas', async (req, res) => {
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+
+        const [parcelas] = await connection.execute(`
+            SELECT 
+                p.id_parcela AS id,
+                p.nombre,
+                p.ubicacion,
+                p.responsable,
+                p.tipo_cultivo,
+                ds.humedad,
+                ds.temperatura,
+                ds.lluvia,
+                ds.sol,
+                ds.fecha_registro,
+                ds.hora_registro
+            FROM parcelas p
+            LEFT JOIN datos_sensores ds ON p.id_parcela = ds.id_parcela_id
+            ORDER BY ds.fecha_registro DESC, ds.hora_registro DESC
+        `);
+
+        await connection.end();
+
+        res.json(parcelas);
+    } catch (error) {
+        console.error('Error al obtener los datos:', error);
+        res.status(500).send('Error al obtener los datos.');
+    }
+});
+// Endpoint para obtener datos de los sensores por hora
+// Endpoint para obtener datos de los sensores por hora
+app.get('/sensores/por-hora', async (req, res) => {
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+
+        const [datosPorHora] = await connection.execute(`
+            SELECT 
+                p.nombre AS parcela,
+                d.fecha_registro AS fecha,
+                d.hora_registro AS hora,
+                d.humedad,
+                d.temperatura,
+                d.lluvia,
+                d.sol
+            FROM parcelas p
+            JOIN datos_sensores d ON p.id_parcela = d.id_parcela_id
+            ORDER BY d.fecha_registro DESC, d.hora_registro DESC
+        `);
+
+        await connection.end();
+
+        res.json(datosPorHora);
+    } catch (error) {
+        console.error('Error al obtener los datos por hora:', error);
+        res.status(500).send('Error al obtener los datos por hora.');
+    }
+});
+
+// Endpoint para obtener datos de los sensores por día
+// Endpoint para obtener datos de los sensores por día
+app.get('/sensores/por-dia', async (req, res) => {
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+
+        const [datosPorDia] = await connection.execute(`
+            SELECT 
+                p.nombre AS parcela,
+                DATE_FORMAT(d.fecha_registro, '%Y-%m-%d') AS fecha,
+                AVG(d.humedad) AS humedad_promedio,
+                AVG(d.temperatura) AS temperatura_promedio,
+                AVG(d.lluvia) AS lluvia_promedio,
+                AVG(d.sol) AS sol_promedio
+            FROM parcelas p
+            JOIN datos_sensores d ON p.id_parcela = d.id_parcela_id
+            GROUP BY p.nombre, fecha
+            ORDER BY fecha DESC
+        `);
+
+        await connection.end();
+
+        res.json(datosPorDia);
+    } catch (error) {
+        console.error('Error al obtener los datos por día:', error);
+        res.status(500).send('Error al obtener los datos por día.');
+    }
+});
+
+// Endpoint para obtener todos los datos de los sensores de cada parcela
+app.get('/sensores/todos', async (req, res) => {
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+
+        const [todosLosDatos] = await connection.execute(`
+            SELECT 
+                p.nombre AS parcela,
+                d.fecha_registro AS fecha,
+                d.hora_registro AS hora,
+                d.humedad,
+                d.temperatura,
+                d.lluvia,
+                d.sol
+            FROM parcelas p
+            JOIN datos_sensores d ON p.id_parcela = d.id_parcela_id
+            ORDER BY d.fecha_registro DESC, d.hora_registro DESC
+        `);
+
+        await connection.end();
+
+        res.json(todosLosDatos);
+    } catch (error) {
+        console.error('Error al obtener todos los datos de los sensores:', error);
+        res.status(500).send('Error al obtener todos los datos de los sensores.');
+    }
 });
 
 // Iniciar el servidor
