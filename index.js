@@ -162,10 +162,10 @@ app.get('/sensores/:id_parcela/por-dia', async (req, res) => {
             SELECT 
                 p.nombre AS parcela,
                 DATE_FORMAT(d.fecha_registro, '%Y-%m-%d') AS fecha,
-                AVG(d.humedad) AS humedad_promedio,
-                AVG(d.temperatura) AS temperatura_promedio,
-                AVG(d.lluvia) AS lluvia_promedio,
-                AVG(d.sol) AS sol_promedio
+                AVG(d.humedad) AS humedad,
+                AVG(d.temperatura) AS temperatura,
+                AVG(d.lluvia) AS lluvia,
+                AVG(d.sol) AS sol
             FROM parcelas p
             JOIN datos_sensores d ON p.id_parcela = d.id_parcela_id
             WHERE p.id_parcela = ?
