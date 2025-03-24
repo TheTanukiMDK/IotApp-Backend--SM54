@@ -23,7 +23,7 @@ const syncData = async () => {
         const connection = await mysql.createConnection(dbConfig);
 
         // Obtener datos de la API
-        const response = await axios.get('https://moriahmkt.com/iotapp/');
+        const response = await axios.get('https://moriahmkt.com/iotapp/test/');
         const parcelas = response.data.parcelas;
 
         // Obtener todas las parcelas existentes en la base de datos
