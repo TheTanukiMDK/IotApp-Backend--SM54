@@ -149,6 +149,44 @@ app.get('/parcelas', async (req, res) => {
         res.status(500).send('Error al obtener los datos.');
     }
 });
+// Endpoint para obtener los datos de una parcela específica por ID
+app.get('/parcelas/:id', async (req, res) => {
+    const { id } = req.params; // Obtener el ID de la parcela desde los parámetros de la URL
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+
+        const [parcela] = await connection.execute(`
+            SELECT 
+                p.id_parcela AS id,
+                p.nombre,
+                p.ubicacion,
+                p.responsable,
+                p.tipo_cultivo,
+                ds.humedad,
+                ds.temperatura,
+                ds.lluvia,
+                ds.sol,
+                ds.fecha_registro,
+                ds.hora_registro
+            FROM parcelas p
+            LEFT JOIN datos_sensores ds ON p.id_parcela = ds.id_parcela_id
+            WHERE p.id_parcela = ?
+            ORDER BY ds.fecha_registro DESC, ds.hora_registro DESC
+            LIMIT 1
+        `, [id]);
+
+        await connection.end();
+
+        if (parcela.length === 0) {
+            res.status(404).send('Parcela no encontrada.');
+        } else {
+            res.json(parcela[0]); // Devolver la parcela encontrada
+        }
+    } catch (error) {
+        console.error('Error al obtener la parcela:', error);
+        res.status(500).send('Error al obtener la parcela.');
+    }
+});
 // Endpoint para obtener datos de los sensores por hora
 app.get('/sensores/:id_parcela/por-hora', async (req, res) => {
     const { id_parcela } = req.params;
