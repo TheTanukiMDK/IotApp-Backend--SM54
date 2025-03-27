@@ -25,7 +25,7 @@ const syncData = async () => {
         // Obtener datos de la API
         const response = await axios.get('https://moriahmkt.com/iotapp/test/');
         const parcelas = response.data.parcelas;
-
+        const sensoresGenerales = response.data.sensores; 
         // Obtener todas las parcelas existentes en la base de datos
         const [dbParcelas] = await connection.execute(`SELECT * FROM parcelas`);
 
@@ -38,16 +38,35 @@ const syncData = async () => {
         // Registrar parcelas eliminadas en la tabla parcelas_borradas si no están ya registradas
         for (const parcelaEliminada of parcelasEliminadas) {
             const [exists] = await connection.execute(
-                `SELECT * FROM parcelas_borradas WHERE id_parcela_id = ?`,
+                `SELECT COUNT(*) AS count FROM parcelas_borradas WHERE id_parcela_id = ?`,
                 [parcelaEliminada.id_parcela]
             );
-
-            if (exists.length === 0) {
+        
+            if (exists[0].count === 0) {
                 await connection.execute(
                     `INSERT INTO parcelas_borradas (id_parcela_id, fecha_eliminado) VALUES (?, ?)`,
                     [parcelaEliminada.id_parcela, new Date()]
                 );
             }
+        }
+         // Sincronizar datos de sensores generales
+         if (sensoresGenerales) {
+            const now = new Date();
+            const fecha = now.toISOString().split('T')[0];
+            const hora = now.toTimeString().split(' ')[0];
+
+            // Insertar los datos de los sensores generales en la tabla sensores
+            await connection.execute(
+                `INSERT INTO sensores (fecha_registro, hora_registro, humedad, temperatura, lluvia, sol) VALUES (?, ?, ?, ?, ?, ?)`,
+                [
+                    fecha,
+                    hora,
+                    sensoresGenerales.humedad,
+                    sensoresGenerales.temperatura,
+                    sensoresGenerales.lluvia,
+                    sensoresGenerales.sol,
+                ]
+            );
         }
 
         // Sincronizar parcelas existentes o nuevas
@@ -60,8 +79,13 @@ const syncData = async () => {
             if (rows.length === 0) {
                 // Insertar nueva parcela
                 await connection.execute(
-                    `INSERT INTO parcelas (id_parcela, nombre, ubicacion, responsable, tipo_cultivo) VALUES (?, ?, ?, ?, ?)`,
-                    [
+                    `INSERT INTO parcelas (id_parcela, nombre, ubicacion, responsable, tipo_cultivo) 
+                    VALUES (?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE 
+                    nombre = VALUES(nombre), 
+                    ubicacion = VALUES(ubicacion), 
+                    responsable = VALUES(responsable), 
+                    tipo_cultivo = VALUES(tipo_cultivo)`,                    [
                         parcela.id,
                         parcela.nombre,
                         `${parcela.latitud}, ${parcela.longitud}`,
@@ -104,6 +128,44 @@ const syncData = async () => {
                 );
             }
         }
+
+        const syncData = async () => {
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+
+        // Obtener datos de la API
+        const response = await axios.get('https://moriahmkt.com/iotapp/test/');
+        const parcelas = response.data.parcelas;
+        const sensoresGenerales = response.data.sensores; // Obtener los sensores generales
+
+        // Sincronizar datos de sensores generales
+        if (sensoresGenerales) {
+            const now = new Date();
+            const fecha = now.toISOString().split('T')[0];
+            const hora = now.toTimeString().split(' ')[0];
+
+            // Insertar los datos de los sensores generales en la tabla sensores
+            await connection.execute(
+                `INSERT INTO sensores (fecha_registro, hora_registro, humedad, temperatura, lluvia, sol) VALUES (?, ?, ?, ?, ?, ?)`,
+                [
+                    fecha,
+                    hora,
+                    sensoresGenerales.humedad,
+                    sensoresGenerales.temperatura,
+                    sensoresGenerales.lluvia,
+                    sensoresGenerales.sol,
+                ]
+            );
+        }
+
+        // ...existing code for parcelas synchronization...
+
+        await connection.end();
+        console.log('Sincronización completada.');
+    } catch (error) {
+        console.error('Error al sincronizar los datos:', error);
+    }
+};
 
         await connection.end();
         console.log('Sincronización completada.');
@@ -301,6 +363,83 @@ app.get('/parcelas-borradas', async (req, res) => {
     } catch (error) {
         console.error('Error al obtener las parcelas borradas:', error);
         res.status(500).send('Error al obtener las parcelas borradas.');
+    }
+});
+
+app.get('/sensores-generales', async (req, res) => {
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+
+        const [sensoresGenerales] = await connection.execute(`
+            SELECT 
+                fecha_registro AS fecha,
+                hora_registro AS hora,
+                humedad,
+                temperatura,
+                lluvia,
+                sol
+            FROM sensores
+            ORDER BY fecha_registro DESC, hora_registro DESC
+        `);
+
+        await connection.end();
+
+        res.json(sensoresGenerales);
+    } catch (error) {
+        console.error('Error al obtener los datos de los sensores generales:', error);
+        res.status(500).send('Error al obtener los datos de los sensores generales.');
+    }
+});
+
+app.get('/sensores-generales/por-dia', async (req, res) => {
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+
+        const [datosPorDia] = await connection.execute(`
+            SELECT 
+                DATE_FORMAT(fecha_registro, '%Y-%m-%d') AS fecha,
+                AVG(humedad) AS humedad,
+                AVG(temperatura) AS temperatura,
+                AVG(lluvia) AS lluvia,
+                AVG(sol) AS sol
+            FROM sensores
+            GROUP BY fecha
+            ORDER BY fecha DESC
+        `);
+
+        await connection.end();
+
+        res.json(datosPorDia);
+    } catch (error) {
+        console.error('Error al obtener los datos de los sensores generales por día:', error);
+        res.status(500).send('Error al obtener los datos de los sensores generales por día.');
+    }
+});
+
+// Endpoint para obtener datos de los sensores generales por hora
+app.get('/sensores-generales/por-hora', async (req, res) => {
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+
+        const [datosPorHora] = await connection.execute(`
+            SELECT 
+                DATE_FORMAT(fecha_registro, '%Y-%m-%d') AS fecha,
+                hora_registro AS hora,
+                AVG(humedad) AS humedad,
+                AVG(temperatura) AS temperatura,
+                AVG(lluvia) AS lluvia,
+                AVG(sol) AS sol
+            FROM sensores
+            GROUP BY fecha, hora
+            ORDER BY fecha DESC, hora DESC
+        `);
+
+        await connection.end();
+
+        res.json(datosPorHora);
+    } catch (error) {
+        console.error('Error al obtener los datos de los sensores generales por hora:', error);
+        res.status(500).send('Error al obtener los datos de los sensores generales por hora.');
     }
 });
 

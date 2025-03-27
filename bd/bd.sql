@@ -27,3 +27,13 @@ CREATE TABLE parcelas_borradas(
     fecha_eliminado DATETIME NOT NULL,
     FOREIGN KEY (id_parcela_id) REFERENCES parcelas(id_parcela) ON DELETE CASCADE
 )
+
+CREATE TABLE sensores(
+    id_sensores INT AUTO_INCREMENT PRIMARY KEY,
+    fecha_registro DATE NOT NULL,
+    hora_registro TIME NOT NULL,    
+    humedad DECIMAL(10,2) NOT NULL,
+    temperatura DECIMAL(10,2) NOT NULL,
+    lluvia DECIMAL(10,2) NOT NULL,
+    sol DECIMAL(10,2) NOT NULL
+)
