@@ -15,6 +15,10 @@ const dbConfig = {
     user: '368585',
     password: '46154774',
     database: 'tanukistyles_iotapp',
+    //host: 'localhost',
+    //user: 'root',
+    //password: '',
+    //database: 'iotapp_saves',
 };
 
 // Función para sincronizar los datos de la API con la base de datos
@@ -26,6 +30,21 @@ const syncData = async () => {
         const response = await axios.get('https://moriahmkt.com/iotapp/test/');
         const parcelas = response.data.parcelas;
         const sensoresGenerales = response.data.sensores; 
+        // Obtener todas las parcelas borradas de la base de datos
+        const [parcelasBorradas] = await connection.execute(`SELECT id_parcela_id FROM parcelas_borradas`);
+
+        // Identificar parcelas que reaparecieron en la API
+        const parcelasReaparecidas = parcelasBorradas.filter((parcelaBorrada) =>
+            parcelas.some((parcela) => parcela.id === parcelaBorrada.id_parcela_id)
+        );
+
+        // Eliminar parcelas reaparecidas de la tabla parcelas_borradas
+        for (const parcelaReaparecida of parcelasReaparecidas) {
+            await connection.execute(
+                `DELETE FROM parcelas_borradas WHERE id_parcela_id = ?`,
+                [parcelaReaparecida.id_parcela_id]
+            );
+        }
         // Obtener todas las parcelas existentes en la base de datos
         const [dbParcelas] = await connection.execute(`SELECT * FROM parcelas`);
 
@@ -44,7 +63,7 @@ const syncData = async () => {
         
             if (exists[0].count === 0) {
                 await connection.execute(
-                    `INSERT INTO parcelas_borradas (id_parcela_id, fecha_eliminado) VALUES (?, ?)`,
+                    `INSERT IGNORE INTO parcelas_borradas (id_parcela_id, fecha_eliminado) VALUES (?, ?)`,
                     [parcelaEliminada.id_parcela, new Date()]
                 );
             }
@@ -129,43 +148,7 @@ const syncData = async () => {
             }
         }
 
-        const syncData = async () => {
-    try {
-        const connection = await mysql.createConnection(dbConfig);
-
-        // Obtener datos de la API
-        const response = await axios.get('https://moriahmkt.com/iotapp/test/');
-        const parcelas = response.data.parcelas;
-        const sensoresGenerales = response.data.sensores; // Obtener los sensores generales
-
-        // Sincronizar datos de sensores generales
-        if (sensoresGenerales) {
-            const now = new Date();
-            const fecha = now.toISOString().split('T')[0];
-            const hora = now.toTimeString().split(' ')[0];
-
-            // Insertar los datos de los sensores generales en la tabla sensores
-            await connection.execute(
-                `INSERT INTO sensores (fecha_registro, hora_registro, humedad, temperatura, lluvia, sol) VALUES (?, ?, ?, ?, ?, ?)`,
-                [
-                    fecha,
-                    hora,
-                    sensoresGenerales.humedad,
-                    sensoresGenerales.temperatura,
-                    sensoresGenerales.lluvia,
-                    sensoresGenerales.sol,
-                ]
-            );
-        }
-
-        // ...existing code for parcelas synchronization...
-
-        await connection.end();
-        console.log('Sincronización completada.');
-    } catch (error) {
-        console.error('Error al sincronizar los datos:', error);
-    }
-};
+       
 
         await connection.end();
         console.log('Sincronización completada.');
