@@ -292,33 +292,33 @@ app.get('/sensores/:id_parcela/por-dia', async (req, res) => {
     }
 });
 
-// Endpoint para obtener todos los datos de los sensores de una parcela específica
-app.get('/sensores/:id_parcela/todos', async (req, res) => {
-    const { id_parcela } = req.params;
+// Endpoint para obtener porcentaje de humedad por parcela
+app.get('/sensores/:id_parcela/porcentaje-humedad', async (req, res) => {
+    const { id_parcela } = req.params; // Obtener el ID de la parcela desde los parámetros de la URL
     try {
         const connection = await mysql.createConnection(dbConfig);
 
-        const [todosLosDatos] = await connection.execute(`
+        // Obtener la suma total de humedad y el número total de registros para la parcela específica
+        const [result] = await connection.execute(`
             SELECT 
-                p.nombre AS parcela,
-                d.fecha_registro AS fecha,
-                d.hora_registro AS hora,
-                d.humedad,
-                d.temperatura,
-                d.lluvia,
-                d.sol
-            FROM parcelas p
-            JOIN datos_sensores d ON p.id_parcela = d.id_parcela_id
-            WHERE p.id_parcela = ?
-            ORDER BY d.fecha_registro DESC, d.hora_registro DESC
+                SUM(humedad) AS total_humedad,
+                COUNT(*) AS total_registros
+            FROM datos_sensores
+            WHERE id_parcela_id = ?
         `, [id_parcela]);
 
         await connection.end();
 
-        res.json(todosLosDatos);
+        const totalHumedad = result[0].total_humedad;
+        const totalRegistros = result[0].total_registros;
+
+        // Calcular el porcentaje de humedad total para la parcela
+        const porcentajeHumedad = totalRegistros ? (totalHumedad / totalRegistros).toFixed(2) : 0;
+
+        res.json({ porcentaje_humedad: porcentajeHumedad });
     } catch (error) {
-        console.error('Error al obtener todos los datos de los sensores:', error);
-        res.status(500).send('Error al obtener todos los datos de los sensores.');
+        console.error('Error al obtener el porcentaje de humedad de la parcela:', error);
+        res.status(500).send('Error al obtener el porcentaje de humedad de la parcela.');
     }
 });
 
@@ -349,31 +349,6 @@ app.get('/parcelas-borradas', async (req, res) => {
     }
 });
 
-app.get('/sensores-generales', async (req, res) => {
-    try {
-        const connection = await mysql.createConnection(dbConfig);
-
-        const [sensoresGenerales] = await connection.execute(`
-            SELECT 
-                fecha_registro AS fecha,
-                hora_registro AS hora,
-                humedad,
-                temperatura,
-                lluvia,
-                sol
-            FROM sensores
-            ORDER BY fecha_registro DESC, hora_registro DESC
-        `);
-
-        await connection.end();
-
-        res.json(sensoresGenerales);
-    } catch (error) {
-        console.error('Error al obtener los datos de los sensores generales:', error);
-        res.status(500).send('Error al obtener los datos de los sensores generales.');
-    }
-});
-
 app.get('/sensores-generales/por-dia', async (req, res) => {
     try {
         const connection = await mysql.createConnection(dbConfig);
@@ -396,6 +371,33 @@ app.get('/sensores-generales/por-dia', async (req, res) => {
     } catch (error) {
         console.error('Error al obtener los datos de los sensores generales por día:', error);
         res.status(500).send('Error al obtener los datos de los sensores generales por día.');
+    }
+});
+
+app.get('/sensores-generales/porcentaje-humedad', async (req, res) => {
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+
+        // Obtener la suma total de humedad y el número total de registros
+        const [result] = await connection.execute(`
+            SELECT 
+                SUM(humedad) AS total_humedad,
+                COUNT(*) AS total_registros
+            FROM sensores
+        `);
+
+        await connection.end();
+
+        const totalHumedad = result[0].total_humedad;
+        const totalRegistros = result[0].total_registros;
+
+        // Calcular el porcentaje de humedad total
+        const porcentajeHumedad = totalRegistros ? (totalHumedad / totalRegistros).toFixed(2) : 0;
+
+        res.json({ porcentaje_humedad: porcentajeHumedad });
+    } catch (error) {
+        console.error('Error al obtener el porcentaje de humedad:', error);
+        res.status(500).send('Error al obtener el porcentaje de humedad.');
     }
 });
 
